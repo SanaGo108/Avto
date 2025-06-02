@@ -65,3 +65,28 @@ def parse_avito(make, model):
     except Exception as e:
         logging.error(f"Error fetching data from Avito: {e}")
         return []
+
+
+def parse_avito_prices(url):
+    prices = []
+    try:
+        # Получаем страницу
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Находим все элементы с ценой
+        for item in soup.find_all('span', {'class': 'price'}):
+            price = item.text.strip().replace('₽', '').replace(' ', '')  # Убираем символы и пробелы
+            if price.isdigit():  # Проверяем, является ли цена числом
+                prices.append(int(price))  # Добавляем цену в список
+            else:
+                logging.warning(f"Non-numeric price found: {price}")
+
+        return prices
+
+    except Exception as e:
+        logging.error(f"Error parsing prices from Avito: {e}")
+        return []
+
+
+

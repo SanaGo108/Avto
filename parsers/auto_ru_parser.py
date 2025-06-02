@@ -10,22 +10,29 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36",
 ]
 
-# Список прокси (можно закомментировать, если не хотите использовать прокси)
-PROXIES = [
-    "http://10.10.1.10:3128",
-    "http://20.20.2.2:3128",
-]
-
-
-# Функция для получения случайного User-Agent
 def get_random_user_agent():
     return random.choice(USER_AGENTS)
 
-
-# Функция для получения случайного прокси
-def get_random_proxy():
-    return random.choice(PROXIES)
-
+def fetch_with_retry(url, headers, retries=5, delay=60):
+    attempt = 0
+    while attempt < retries:
+        try:
+            # Отправляем запрос
+            response = requests.get(url, headers=headers, timeout=60)
+            response.raise_for_status()  # Проверка успешного статуса
+            return response
+        except requests.exceptions.RequestException as e:
+            if response.status_code == 429:
+                logging.warning(f"Too many requests. Retrying in {delay} seconds...")
+                time.sleep(delay)  # Задержка перед повторной попыткой
+            elif response.status_code == 503:
+                logging.warning(f"Service unavailable. Retrying in {delay} seconds...")
+                time.sleep(delay)  # Задержка при недоступности сервиса
+            else:
+                logging.error(f"Request failed: {e}")
+                time.sleep(delay)
+            attempt += 1
+    raise Exception(f"Failed to fetch data after {retries} attempts")
 
 def parse_auto_ru(make, model):
     url = f'https://auto.ru/moskva/cars/?make_id={make}&model_id={model}'
@@ -35,46 +42,26 @@ def parse_auto_ru(make, model):
         'Accept-Language': 'en-US,en;q=0.9'
     }
 
-    # Использование прокси
-    # Если хотите отключить прокси, закомментируйте следующие строки:
-    # proxy = get_random_proxy()
-    # proxies = {"http": proxy, "https": proxy}
-
-    # Отправка запроса с прокси (если используете)
-    proxies = None  # Отключить прокси для тестирования
     try:
-        # Выполняем запрос
-        response = requests.get(url, headers=headers, proxies=proxies)
+        logging.info(f"Fetching data for {make} {model} from Auto.ru...")
+        time.sleep(random.uniform(120, 180))  # Задержка от 2 до 3 минут
 
-        # Обработка ошибки 429 (слишком много запросов)
-        if response.status_code == 429:
-            logging.warning(f"Too many requests, waiting before retrying...")
-            time.sleep(30)  # Задержка 30 секунд перед повтором
-            response = requests.get(url, headers=headers, proxies=proxies)
+        # Используем retry-систему для запросов
+        response = fetch_with_retry(url, headers)
 
-        response.raise_for_status()  # Возбуждает исключение при ошибке HTTP
+        # Парсим HTML-страницу с помощью BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        prices = []
 
-    except requests.RequestException as e:
+        # Ищем все элементы с ценой
+        for item in soup.find_all('span', {'class': 'price'}):
+            price = item.text.strip().replace('₽', '').replace(' ', '')  # Убираем символы и пробелы
+            if price.isdigit():  # Проверяем, является ли цена числом
+                prices.append(int(price))  # Добавляем цену в список
+
+        return prices
+
+    except Exception as e:
         logging.error(f"Error fetching data from Auto.ru: {e}")
+        return []
 
-        # Проверяем существует ли переменная response перед её использованием
-        if 'response' in locals():
-            logging.error(f"Response status code: {response.status_code}")
-        else:
-            logging.error("No response object created due to error.")
-
-        # Прерывание выполнения и вывод исключения
-        raise Exception("Failed to fetch data from Auto.ru")
-
-    # Парсим HTML-страницу
-    soup = BeautifulSoup(response.text, 'html.parser')
-    prices = []
-
-    # Ищем все элементы с ценой
-    for item in soup.find_all('span', {'class': 'price'}):
-        price = item.text.strip().replace('₽', '').replace(' ', '')  # Убираем символы и пробелы
-        if price.isdigit():  # Проверяем, является ли цена числом
-            prices.append(int(price))
-
-    # Возвращаем список найденных цен
-    return prices

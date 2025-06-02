@@ -1,4 +1,3 @@
-# drom_parser.py
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
@@ -8,7 +7,6 @@ from bs4 import BeautifulSoup
 import time
 import logging
 
-
 def get_selenium_driver():
     """Настройка ChromeDriver для работы в безголовом режиме."""
     chrome_options = Options()
@@ -16,7 +14,6 @@ def get_selenium_driver():
     chrome_options.add_argument('--disable-gpu')
     driver = webdriver.Chrome(options=chrome_options)
     return driver
-
 
 def parse_drom(make, model):
     """Парсинг цен с сайта Drom.ru с использованием Selenium."""
@@ -49,9 +46,9 @@ def parse_drom(make, model):
 
         # Извлекаем цены с страницы
         for item in soup.find_all('div', {'class': 'price'}):
-            price = item.text.strip().replace('₽', '').replace(' ', '')
-            if price.isdigit():
-                prices.append(int(price))
+            price = item.text.strip().replace('₽', '').replace(' ', '')  # Убираем символы и пробелы
+            if price.isdigit():  # Проверяем, является ли цена числом
+                prices.append(int(price))  # Добавляем цену в список
 
         if not prices:
             logging.warning(f"No prices found for {make} {model}.")
